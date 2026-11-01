@@ -1,0 +1,59 @@
+{
+ "brightness": 2,
+ "scroll_speed": 40,
+ "mirror": false,
+ "flip": false,
+ "reverse_modules": false,
+ "items": [
+  {
+   "type": "text",
+   "text": "HELLO!",
+   "static": false,
+   "duration": 3
+  },
+  {
+   "type": "animation",
+   "name": "Blink",
+   "fps": 3,
+   "loops": 3,
+   "frames": [
+    [
+     245760,
+     270336,
+     675840,
+     528384,
+     675840,
+     626688,
+     270336,
+     245760
+    ],
+    [
+     245760,
+     270336,
+     675840,
+     528384,
+     675840,
+     626688,
+     270336,
+     245760
+    ],
+    [
+     245760,
+     270336,
+     946176,
+     528384,
+     675840,
+     626688,
+     270336,
+     245760
+    ]
+   ]
+  },
+  {
+   "type": "text",
+   "text": "HI :)",
+   "static": true,
+   "duration": 3
+  }
+ ]
+}

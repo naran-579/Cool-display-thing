@@ -82,7 +82,7 @@
 			(subtractmaskfromsilk no)
 			(outputformat 1)
 			(mirror no)
-			(drillshape 1)
+			(drillshape 0)
 			(scaleselection 1)
 			(outputdirectory "")
 		)
@@ -2751,6 +2751,17 @@
 		(fill no)
 		(layer "Edge.Cuts")
 		(uuid "90cabc08-4d4b-4636-a0af-8339addabcf6")
+	)
+	(gr_circle
+		(center 145 101)
+		(end 161 112.5)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(fill no)
+		(layer "Edge.Cuts")
+		(uuid "a505a076-66e1-44f1-93c1-67681db4f5cf")
 	)
 	(segment
 		(start 138.46 99.04)
