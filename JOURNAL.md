@@ -6,7 +6,7 @@
 > [!NOTE]
 > This devlog is mirrored from [Half Life](https://halflife.hackclub.com) ([open the project](https://halflife.hackclub.com/projects/vnvx3jvludvp0yc2j9jo2d40)). Editing it here will not change the platform's copy, and the next sync overwrites this file.
 
-> not a clue
+> This is a little matrix project that stands upright on your desk and can display whatever you want it to, all customizable with a GUI
 
 | Week | Tier | Hours logged | Entries |
 | --- | --- | --- | --- |
