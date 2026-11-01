@@ -1321,36 +1321,46 @@
 		)
 	)
 	(no_connect
-		(at 127 101.6)
-		(uuid "12cc20d8-ad50-43f6-b700-67759dfcef31")
-	)
-	(no_connect
 		(at 127 109.22)
-		(uuid "5c61f037-5f5f-47f8-8b5e-5f02bda4870b")
-	)
-	(no_connect
-		(at 127 105.41)
-		(uuid "76336110-be13-4b00-94f1-db47a3cd35a2")
+		(uuid "139abdba-4ce0-470f-92b1-b138591fa478")
 	)
 	(no_connect
 		(at 127 90.17)
-		(uuid "87c09a2c-6692-4645-89e1-e8fa43ede094")
-	)
-	(no_connect
-		(at 162.56 109.22)
-		(uuid "c0e12d45-25ef-464d-ac40-e05d6f423895")
-	)
-	(no_connect
-		(at 162.56 101.6)
-		(uuid "c9f87595-7a14-4cf9-b27e-aabcbc83a4a5")
+		(uuid "226b5345-895c-4510-a7f0-75f01a4b3f5a")
 	)
 	(no_connect
 		(at 127 93.98)
-		(uuid "eb1ef4e7-8212-45d5-a4d2-b57a6c98fea7")
+		(uuid "50cacd58-589f-4cdf-86f8-c787553d023d")
+	)
+	(no_connect
+		(at 127 113.03)
+		(uuid "5d310383-073a-47b0-89e8-f99c72ae0085")
 	)
 	(no_connect
 		(at 162.56 97.79)
-		(uuid "f705332c-e08f-4e7c-b896-d3e2abb45dfe")
+		(uuid "76d7f25e-edfc-4d45-a065-1061956a53ac")
+	)
+	(no_connect
+		(at 127 97.79)
+		(uuid "7bb86f2f-e7f9-4777-b996-0d8e6268b816")
+	)
+	(no_connect
+		(at 162.56 105.41)
+		(uuid "7fd89959-7d2a-450d-ba63-728f1010f9a4")
+	)
+	(no_connect
+		(at 127 105.41)
+		(uuid "b6f21bfa-4a09-45cb-a23b-0ef149ef9aab")
+	)
+	(wire
+		(pts
+			(xy 162.56 109.22) (xy 165.1 109.22)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "24790aaa-eeba-4ff7-aec7-55e28065597f")
 	)
 	(wire
 		(pts
@@ -1364,33 +1374,13 @@
 	)
 	(wire
 		(pts
-			(xy 162.56 113.03) (xy 165.1 113.03)
+			(xy 162.56 101.6) (xy 165.1 101.6)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "30ac0172-40d8-407b-b20e-8a4b7e29b24e")
-	)
-	(wire
-		(pts
-			(xy 124.46 113.03) (xy 127 113.03)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "429d87bd-103e-4158-9821-d0293c0470af")
-	)
-	(wire
-		(pts
-			(xy 162.56 105.41) (xy 165.1 105.41)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "55fcd5e5-0327-428b-bcf0-9ea1b5ccfcef")
+		(uuid "3d3d64da-d240-4d5d-8d53-5eca6bf0d9fd")
 	)
 	(wire
 		(pts
@@ -1401,6 +1391,16 @@
 			(type default)
 		)
 		(uuid "6dca0f1d-2861-456a-8d0d-5a04b7d68e27")
+	)
+	(wire
+		(pts
+			(xy 162.56 113.03) (xy 165.1 113.03)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6f79a3ce-25eb-40df-ba32-35eaa305fc2d")
 	)
 	(wire
 		(pts
@@ -1434,6 +1434,16 @@
 	)
 	(wire
 		(pts
+			(xy 124.46 101.6) (xy 127 101.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9c6104c4-edfc-4438-a9fc-1a9cb11fb148")
+	)
+	(wire
+		(pts
 			(xy 162.56 93.98) (xy 165.1 93.98)
 		)
 		(stroke
@@ -1444,16 +1454,6 @@
 	)
 	(wire
 		(pts
-			(xy 124.46 97.79) (xy 127 97.79)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "ec71e215-2014-4fc3-87e3-570b2d940d30")
-	)
-	(wire
-		(pts
 			(xy 204.47 102.87) (xy 207.01 102.87)
 		)
 		(stroke
@@ -1461,6 +1461,26 @@
 			(type default)
 		)
 		(uuid "f17b4342-416e-41a5-b6a6-fd6b84dec36b")
+	)
+	(label "MTX_CLK"
+		(at 165.1 109.22 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "02d211a5-dd1b-4679-9349-6c2f3fcd9901")
+	)
+	(label "MTX_DIN"
+		(at 165.1 101.6 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "11139ced-0b58-41ed-91c6-8661ad6b42d6")
 	)
 	(label "BTN"
 		(at 185.42 76.2 0)
@@ -1473,26 +1493,6 @@
 		(uuid "21a56925-79d5-476f-ad87-ea3028c038a3")
 	)
 	(label "MTX_CLK"
-		(at 165.1 113.03 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "22d30954-2184-43ed-aaeb-437148d9a264")
-	)
-	(label "MTX_DIN"
-		(at 165.1 105.41 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "267ac3a2-ddac-4059-9bb7-b09e70f18925")
-	)
-	(label "MTX_CLK"
 		(at 204.47 105.41 0)
 		(effects
 			(font
@@ -1501,27 +1501,6 @@
 			(justify left bottom)
 		)
 		(uuid "44e6aa34-7fbc-4e9a-b41e-e59e9d3e4b92")
-	)
-	(label "BTN"
-		(at 124.46 97.79 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "5156b8f6-f220-4985-879e-04143e24ca47")
-	)
-	(label "MTX_CS"
-		(at 124.46 113.03 0)
-		(effects
-			(font
-				(face "Waseem")
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "526bf546-6a92-49b4-bf71-1219eb8cb08a")
 	)
 	(label "MTX_DIN"
 		(at 204.47 100.33 0)
@@ -1543,15 +1522,25 @@
 		)
 		(uuid "8ad6219f-ead6-4a8b-a188-d35795969a1f")
 	)
-	(label "5V"
-		(at 165.1 90.17 0)
+	(label "BTN"
+		(at 124.46 101.6 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left bottom)
 		)
-		(uuid "929fda34-aa98-4480-8729-cd7ea29f2dbd")
+		(uuid "a9b876fb-4474-49c7-97a9-1b6a476979b3")
+	)
+	(label "MTX_CS"
+		(at 165.1 113.03 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "ac6b9b07-f877-42e2-8a3d-e28440b124a2")
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -1578,6 +1567,7 @@
 		)
 		(property "Value" "GND"
 			(at 165.1 99.06 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
