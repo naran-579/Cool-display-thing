@@ -4,6 +4,14 @@
  "mirror": false,
  "flip": false,
  "reverse_modules": false,
+ "timer": {
+  "enabled": true,
+  "minutes": 5,
+  "seconds": 0
+ },
+ "stopwatch": {
+  "enabled": true
+ },
  "items": [
   {
    "type": "text",
@@ -135,6 +143,11 @@
    "style": "stacked",
    "static": true,
    "duration": 3
+  },
+  {
+   "type": "clock",
+   "format": "24h",
+   "duration": 5
   }
  ]
 }

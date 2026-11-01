@@ -10,12 +10,14 @@ Needs:   Python 3.8+ (tkinter is built in). For sending to the display: pip inst
 """
 
 import copy
+import datetime
 import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -100,8 +102,18 @@ def set_px(rows, x, y, on):
     rows[y] = rows[y] | bit if on else rows[y] & ~bit
 
 
+def clock_rows(fmt, when=None):
+    now = when or datetime.datetime.now()
+    hour = now.hour % 12 or 12 if fmt == "12h" else now.hour
+    return window(text_strip("%02d%02d" % (hour, now.minute), "stacked"), 0)
+
+
 def item_frames(item, cfg):
     """Yields (rows, milliseconds) exactly the way the firmware plays an item."""
+    if item["type"] == "clock":
+        for _ in range(max(1, int(item.get("duration", 5)))):
+            yield clock_rows(item.get("format", "24h")), 1000
+        return
     if item["type"] == "text":
         strip = text_strip(item.get("text", ""), item.get("style", "stacked"))
         if item.get("static"):
@@ -117,6 +129,65 @@ def item_frames(item, cfg):
         for _ in range(max(1, item.get("loops", 1))):
             for rows in frames:
                 yield rows, delay
+
+
+def time_rows(seconds):
+    """Minutes over seconds; from one hour on, hours over minutes with a dot on the
+    right edge between them. Matches the firmware."""
+    if seconds >= 3600:
+        rows = window(text_strip("%02d%02d" % (min(99, seconds // 3600), seconds // 60 % 60), "stacked"), 0)
+        rows[15] |= 0x01
+        return rows
+    return window(text_strip("%02d%02d" % (seconds // 60, seconds % 60), "stacked"), 0)
+
+
+def now_ms():
+    return time.monotonic() * 1000
+
+
+class SimTimer:
+    """Same behaviour as the timer in the firmware, for trying it out in the app."""
+    def __init__(self, seconds):
+        self.length = max(1, seconds) * 1000
+        self.reset()
+
+    def reset(self):
+        self.running, self.left, self.ends = False, self.length, 0
+
+    def remaining(self):
+        return max(0, self.ends - now_ms()) if self.running else self.left
+
+    def finished(self):
+        return self.running and self.remaining() == 0
+
+    def toggle(self):
+        if self.running:
+            self.left, self.running = self.remaining(), False
+        else:
+            self.ends, self.running = now_ms() + self.left, True
+
+    def paused(self):
+        return not self.running and self.left != self.length
+
+
+class SimStopwatch:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.running, self.total, self.started = False, 0, 0
+
+    def elapsed(self):
+        return self.total + (now_ms() - self.started if self.running else 0)
+
+    def toggle(self):
+        if self.running:
+            self.total, self.running = self.elapsed(), False
+        else:
+            self.started, self.running = now_ms(), True
+
+    def paused(self):
+        return not self.running and self.total > 0
 
 
 def upgrade_frame(rows):
@@ -143,12 +214,15 @@ DEFAULT_CONFIG = {
     "mirror": False,
     "flip": False,
     "reverse_modules": False,
+    "timer": {"enabled": True, "minutes": 5, "seconds": 0},
+    "stopwatch": {"enabled": True},
     "items": [
         {"type": "text", "text": "HELLO", "style": "stacked", "static": False, "duration": 3},
         {"type": "animation", "name": "Blink", "fps": 3, "loops": 3,
          "frames": [face(0xA5), face(0xA5), face(0xE7)]},
         {"type": "text", "text": "HELLO, WORLD", "style": "sideways", "static": False, "duration": 3},
         {"type": "text", "text": "HI:)", "style": "stacked", "static": True, "duration": 3},
+        {"type": "clock", "format": "24h", "duration": 5},
     ],
 }
 
@@ -239,7 +313,7 @@ class Studio(tk.Tk):
         super().__init__()
         self.title("Matrix Studio")
         self.configure(bg=CHROME)
-        self.minsize(900, 660)
+        self.minsize(960, 700)
         self.cfg = copy.deepcopy(DEFAULT_CONFIG)
         self.path = None
         self.sel = 0
@@ -286,8 +360,14 @@ class Studio(tk.Tk):
         right = ttk.Frame(self, padding=(12, 16, 16, 16))
         right.pack(side="left", fill="both", expand=True)
 
-        work = ttk.Frame(right)
-        work.pack(fill="both", expand=True)
+        self.tabs = ttk.Notebook(right)
+        self.tabs.pack(fill="both", expand=True)
+        work = ttk.Frame(self.tabs, padding=10)
+        self.tabs.add(work, text="Playlist")
+        tools = ttk.Frame(self.tabs, padding=14)
+        self.tabs.add(tools, text="Timer and stopwatch")
+        self._build_tools(tools)
+        self.tabs.bind("<<NotebookTabChanged>>", self.on_tab)
 
         # playlist
         plist = ttk.Frame(work)
@@ -307,6 +387,9 @@ class Studio(tk.Tk):
         ttk.Button(row, text="Add animation", command=self.add_anim).pack(side="left", expand=True, fill="x", padx=(4, 0))
         row = ttk.Frame(plist)
         row.pack(fill="x", pady=(4, 0))
+        ttk.Button(row, text="Add clock", command=self.add_clock).pack(side="left", expand=True, fill="x")
+        row = ttk.Frame(plist)
+        row.pack(fill="x", pady=(4, 0))
         for label, cmd in (("Up", lambda: self.move_item(-1)), ("Down", lambda: self.move_item(1)),
                            ("Copy", self.dup_item), ("Delete", self.del_item)):
             ttk.Button(row, text=label, command=cmd, width=6).pack(side="left", expand=True, fill="x", padx=(0, 2))
@@ -318,6 +401,7 @@ class Studio(tk.Tk):
         self.hint.pack(anchor="w", side="bottom", pady=(10, 0))
         self._build_text_editor()
         self._build_anim_editor()
+        self._build_clock_editor()
 
         # settings + actions
         settings = ttk.LabelFrame(right, text="Display settings", padding=10)
@@ -354,6 +438,8 @@ class Studio(tk.Tk):
         self.send_btn.pack(side="right")
         self.install_btn = ttk.Button(actions, text="Install firmware", command=self.install_firmware)
         self.install_btn.pack(side="right", padx=(0, 6))
+        self.clock_btn = ttk.Button(actions, text="Set clock", command=self.set_clock)
+        self.clock_btn.pack(side="right", padx=(0, 6))
         self.status = ttk.Label(right, style="Muted.TLabel")
         self.status.pack(anchor="w", pady=(6, 0))
 
@@ -438,6 +524,171 @@ class Studio(tk.Tk):
         ttk.Checkbutton(f, text="Show previous frame faintly while drawing", variable=self.onion_var,
                         command=self.refresh_canvas).pack(anchor="w", pady=(8, 0))
 
+    def _build_clock_editor(self):
+        f = self.clock_editor = ttk.Frame(self.editor_host)
+        ttk.Label(f, text="Clock", style="Head.TLabel").pack(anchor="w")
+        ttk.Label(f, text="Shows the hour on the top half and the minutes on the bottom half.",
+                  style="Muted.TLabel", wraplength=420, justify="left").pack(anchor="w", pady=(4, 10))
+        self.format_var = tk.StringVar(value="24h")
+        ttk.Radiobutton(f, text="24-hour (14 then 30 for 2:30 pm)", value="24h",
+                        variable=self.format_var, command=self.on_clock_change).pack(anchor="w")
+        ttk.Radiobutton(f, text="12-hour (02 then 30 for 2:30 pm)", value="12h",
+                        variable=self.format_var, command=self.on_clock_change).pack(anchor="w")
+        opts = ttk.Frame(f)
+        opts.pack(anchor="w", pady=(12, 0))
+        ttk.Label(opts, text="Show for").pack(side="left", padx=(0, 4))
+        self.clock_dur_var = tk.StringVar()
+        ttk.Spinbox(opts, from_=1, to=600, width=5, textvariable=self.clock_dur_var,
+                    command=self.on_clock_change).pack(side="left")
+        self.clock_dur_var.trace_add("write", lambda *a: self.on_clock_change())
+        ttk.Label(opts, text="seconds").pack(side="left", padx=(4, 0))
+        ttk.Label(f, text="The clock chip keeps time while unplugged. Use Set clock once after "
+                          "installing the firmware, and again whenever the time drifts or changes "
+                          "for daylight saving.", style="Muted.TLabel", wraplength=420,
+                  justify="left").pack(anchor="w", pady=(14, 0))
+
+    def _build_tools(self, f):
+        self.sim_job = None
+        self.sim_timer = SimTimer(300)
+        self.sim_watch = SimStopwatch()
+
+        ttk.Label(f, text="Timer", style="Head.TLabel").grid(row=0, column=0, sticky="w")
+        self.timer_on_var = tk.BooleanVar()
+        ttk.Checkbutton(f, text="Include the timer", variable=self.timer_on_var,
+                        command=self.on_tools_change).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        length = ttk.Frame(f)
+        length.grid(row=2, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(length, text="Counts down from").pack(side="left", padx=(0, 6))
+        self.tmin_var = tk.StringVar()
+        self.tsec_var = tk.StringVar()
+        ttk.Spinbox(length, from_=0, to=99, width=4, textvariable=self.tmin_var,
+                    command=self.on_tools_change).pack(side="left")
+        ttk.Label(length, text="min").pack(side="left", padx=(4, 10))
+        ttk.Spinbox(length, from_=0, to=59, width=4, textvariable=self.tsec_var,
+                    command=self.on_tools_change).pack(side="left")
+        ttk.Label(length, text="sec").pack(side="left", padx=(4, 0))
+        self.tmin_var.trace_add("write", lambda *a: self.on_tools_change())
+        self.tsec_var.trace_add("write", lambda *a: self.on_tools_change())
+
+        ttk.Label(f, text="Stopwatch", style="Head.TLabel").grid(row=3, column=0, sticky="w", pady=(16, 0))
+        self.watch_on_var = tk.BooleanVar()
+        ttk.Checkbutton(f, text="Include the stopwatch", variable=self.watch_on_var,
+                        command=self.on_tools_change).grid(row=4, column=0, sticky="w", pady=(4, 0))
+
+        ttk.Label(f, text="Using the button", style="Head.TLabel").grid(row=0, column=1, sticky="w", padx=(40, 0))
+        guide = ttk.Frame(f)
+        guide.grid(row=1, column=1, rowspan=4, sticky="nw", padx=(40, 0), pady=(4, 0))
+        for i, (what, does) in enumerate((
+                ("Hold", "Switch between playlist, timer and stopwatch"),
+                ("Press", "Playlist: skip to the next item\nTimer and stopwatch: start or pause"),
+                ("Double-press", "Timer and stopwatch: reset"))):
+            ttk.Label(guide, text=what, font=("TkDefaultFont", 10, "bold")).grid(
+                row=i, column=0, sticky="nw", pady=(0, 6))
+            ttk.Label(guide, text=does, justify="left").grid(row=i, column=1, sticky="nw", padx=(10, 0), pady=(0, 6))
+        ttk.Label(guide, text="When the timer runs out, the display flashes until you press the "
+                              "button, even if you were looking at something else. A paused timer "
+                              "or stopwatch blinks. Past one hour, the stopwatch shows hours over "
+                              "minutes, with a dot between them.",
+                  style="Muted.TLabel", wraplength=300, justify="left").grid(
+            row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        ttk.Separator(f).grid(row=5, column=0, columnspan=2, sticky="ew", pady=16)
+        ttk.Label(f, text="Try it on the preview", style="Head.TLabel").grid(row=6, column=0, sticky="w")
+        tryit = ttk.Frame(f)
+        tryit.grid(row=7, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self.sim_mode_var = tk.StringVar(value="timer")
+        ttk.Radiobutton(tryit, text="Timer", value="timer", variable=self.sim_mode_var,
+                        command=self.sim_draw).pack(side="left")
+        ttk.Radiobutton(tryit, text="Stopwatch", value="stopwatch", variable=self.sim_mode_var,
+                        command=self.sim_draw).pack(side="left", padx=(10, 20))
+        ttk.Button(tryit, text="Press", command=self.sim_press).pack(side="left")
+        ttk.Button(tryit, text="Double-press", command=self.sim_double).pack(side="left", padx=(6, 0))
+
+    def timer_seconds(self):
+        t = self.cfg["timer"]
+        return max(1, int(t.get("minutes", 0)) * 60 + int(t.get("seconds", 0)))
+
+    def on_tools_change(self):
+        if self.loading:
+            return
+        t = self.cfg["timer"]
+        t["enabled"] = self.timer_on_var.get()
+        for key, var, hi in (("minutes", self.tmin_var, 99), ("seconds", self.tsec_var, 59)):
+            try:
+                t[key] = max(0, min(hi, int(var.get())))
+            except ValueError:
+                pass
+        if t.get("minutes", 0) == 0 and t.get("seconds", 0) == 0:
+            t["seconds"] = 1
+        self.cfg["stopwatch"]["enabled"] = self.watch_on_var.get()
+        self.sim_timer = SimTimer(self.timer_seconds())
+
+    def on_tab(self, _event=None):
+        if not hasattr(self, "play_btn"):
+            return
+        on_tools = self.tabs.index("current") == 1
+        self.stop()
+        for b in (self.play_btn, self.play_all_btn):
+            b.state(["disabled"] if on_tools else ["!disabled"])
+        if on_tools:
+            self.panel.editable = False
+            self.sim_draw()
+        else:
+            if self.sim_job:
+                self.after_cancel(self.sim_job)
+                self.sim_job = None
+            self.show_editor()
+
+    def sim_press(self):
+        if self.sim_mode_var.get() == "timer":
+            if self.sim_timer.finished():
+                self.sim_timer.reset()
+            else:
+                self.sim_timer.toggle()
+        else:
+            self.sim_watch.toggle()
+        self.sim_draw()
+
+    def sim_double(self):
+        (self.sim_timer if self.sim_mode_var.get() == "timer" else self.sim_watch).reset()
+        self.sim_draw()
+
+    def sim_draw(self):
+        if self.sim_job:
+            self.after_cancel(self.sim_job)
+        blink_on = int(now_ms() // 500) % 2 == 0
+        if self.sim_mode_var.get() == "timer":
+            t = self.sim_timer
+            if t.finished():
+                rows = [0xFF] * HEIGHT if int(now_ms() // 250) % 2 else time_rows(0)
+            else:
+                rows = time_rows(int((t.remaining() + 999) // 1000))
+                if t.paused() and not blink_on:
+                    rows = [0] * HEIGHT
+        else:
+            w = self.sim_watch
+            rows = time_rows(int(w.elapsed() // 1000))
+            if w.paused() and not blink_on:
+                rows = [0] * HEIGHT
+        self.panel.show(rows)
+        self.sim_job = self.after(100, self.sim_draw)
+
+    def on_clock_change(self):
+        if self.loading or not self.item or self.item["type"] != "clock":
+            return
+        self.stop()
+        it = self.item
+        it["format"] = self.format_var.get()
+        try:
+            it["duration"] = max(1, int(self.clock_dur_var.get()))
+        except ValueError:
+            pass
+        self.refresh_list_row()
+        self.refresh_canvas()
+
+    def add_clock(self):
+        self.insert_item({"type": "clock", "format": "24h", "duration": 5})
+
     # ----- state helpers -----
     @property
     def item(self):
@@ -445,6 +696,9 @@ class Studio(tk.Tk):
         return items[self.sel] if 0 <= self.sel < len(items) else None
 
     def label_for(self, item):
+        if item["type"] == "clock":
+            fmt = "12-hour" if item.get("format") == "12h" else "24-hour"
+            return f"Clock ({fmt}, {item.get('duration', 5)} s)"
         if item["type"] == "text":
             mode = "hold" if item.get("static") else "scroll"
             return f"Message ({mode}): {item.get('text', '') or '(empty)'}"
@@ -472,6 +726,11 @@ class Studio(tk.Tk):
         self.mirror_var.set(self.cfg["mirror"])
         self.flip_var.set(self.cfg["flip"])
         self.revmod_var.set(self.cfg["reverse_modules"])
+        self.timer_on_var.set(self.cfg["timer"].get("enabled", True))
+        self.tmin_var.set(str(self.cfg["timer"].get("minutes", 5)))
+        self.tsec_var.set(str(self.cfg["timer"].get("seconds", 0)))
+        self.watch_on_var.set(self.cfg["stopwatch"].get("enabled", True))
+        self.sim_timer = SimTimer(self.timer_seconds())
         self.loading = False
         self.on_setting()
         self.sel = 0 if self.cfg["items"] else -1
@@ -483,12 +742,19 @@ class Studio(tk.Tk):
         self.stop()
         self.text_editor.pack_forget()
         self.anim_editor.pack_forget()
+        self.clock_editor.pack_forget()
         it = self.item
         self.loading = True
         if it is None:
             self.panel.editable = False
             self.panel.show([0] * HEIGHT)
             self.hint.configure(text="Add a message or an animation to get started.")
+        elif it["type"] == "clock":
+            self.format_var.set(it.get("format", "24h"))
+            self.clock_dur_var.set(str(it.get("duration", 5)))
+            self.clock_editor.pack(fill="both", expand=True, side="top")
+            self.panel.editable = False
+            self.hint.configure(text="The preview shows this computer's current time.")
         elif it["type"] == "text":
             self.text_var.set(it.get("text", ""))
             self.style_var.set(it.get("style", "stacked"))
@@ -516,7 +782,9 @@ class Studio(tk.Tk):
         it = self.item
         if it is None:
             return
-        if it["type"] == "text":
+        if it["type"] == "clock":
+            self.panel.show(clock_rows(it.get("format", "24h")))
+        elif it["type"] == "text":
             strip = text_strip(it.get("text", ""), it.get("style", "stacked"))
             top = (HEIGHT - len(strip)) // 2 if it.get("static") else 0
             self.panel.show(window(strip, top))
@@ -610,7 +878,7 @@ class Studio(tk.Tk):
         self.refresh_list_row()
 
     def on_paint(self, x, y, value, start):
-        if not self.item or self.item["type"] != "animation":
+        if not self.item or self.item["type"] != "animation" or self.tabs.index("current") == 1:
             return
         self.stop()
         rows = self.item["frames"][self.frame_idx]
@@ -828,27 +1096,36 @@ class Studio(tk.Tk):
         return True
 
     def _run_mpremote(self, steps, done_message):
-        """steps: list of (local_path, board_name) files to copy, then the board restarts."""
+        """steps: mpremote commands to run in order (each a list of words); then the board restarts."""
         cmd = [sys.executable, "-m", "mpremote"]
-        for local, remote in steps:
-            cmd += ["cp", str(local), f":{remote}", "+"]
+        for step in steps:
+            cmd += [str(w) for w in step] + ["+"]
         cmd += ["reset"]
-        self.send_btn.state(["disabled"])
-        self.install_btn.state(["disabled"])
+        buttons = (self.send_btn, self.install_btn, self.clock_btn)
+        for b in buttons:
+            b.state(["disabled"])
         self.set_status("Sending… keep the display plugged in.")
 
-        def work():
+        result = []
+
+        def work():   # runs in the background so the window doesn't freeze
             try:
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-                ok = r.returncode == 0
-                detail = (r.stderr or r.stdout).strip()
+                result.append((r.returncode == 0, (r.stderr or r.stdout).strip()))
             except subprocess.TimeoutExpired:
-                ok, detail = False, "It took too long to respond."
-            self.after(0, lambda: finish(ok, detail))
+                result.append((False, "It took too long to respond."))
+            except Exception as e:
+                result.append((False, str(e)))
+
+        def check():  # the window checks back until the background work is done
+            if result:
+                finish(*result[0])
+            else:
+                self.after(100, check)
 
         def finish(ok, detail):
-            self.send_btn.state(["!disabled"])
-            self.install_btn.state(["!disabled"])
+            for b in buttons:
+                b.state(["!disabled"])
             if ok:
                 self.set_status(done_message)
             else:
@@ -859,6 +1136,7 @@ class Studio(tk.Tk):
                     "and that nothing else (like Thonny) has it open.\n\nDetails:\n" + detail[-800:])
 
         threading.Thread(target=work, daemon=True).start()
+        self.after(100, check)
 
     def _temp_config(self):
         tmp = Path(tempfile.mkdtemp()) / "config.json"
@@ -872,20 +1150,31 @@ class Studio(tk.Tk):
             messagebox.showinfo("Nothing to send", "Add a message or an animation first.")
             return
         if self._mpremote_ready():
-            self._run_mpremote([(self._temp_config(), "config.json")],
+            self._run_mpremote([["cp", self._temp_config(), ":config.json"]],
                                "Sent. The display restarted with your playlist.")
 
     def install_firmware(self):
         self.stop()
-        main, driver = FIRMWARE_DIR / "main.py", FIRMWARE_DIR / "max7219.py"
-        if not (main.exists() and driver.exists()):
+        names = ["max7219.py", "ds3231.py", "main.py"]
+        missing = [n for n in names if not (FIRMWARE_DIR / n).exists()]
+        if missing:
             messagebox.showerror("Firmware files not found",
-                                 f"Expected main.py and max7219.py in:\n{FIRMWARE_DIR}")
+                                 f"Expected {', '.join(missing)} in:\n{FIRMWARE_DIR}")
             return
         if self._mpremote_ready():
-            self._run_mpremote([(driver, "max7219.py"), (main, "main.py"),
-                                (self._temp_config(), "config.json")],
-                               "Firmware installed. The display restarted.")
+            steps = [["cp", FIRMWARE_DIR / n, f":{n}"] for n in names]
+            steps.append(["cp", self._temp_config(), ":config.json"])
+            self._run_mpremote(steps, "Firmware installed. The display restarted.")
+
+    def set_clock(self):
+        self.stop()
+        if not self._mpremote_ready():
+            return
+        now = datetime.datetime.now() + datetime.timedelta(seconds=1)   # allow for sending time
+        code = (f"import ds3231; ds3231.set_time({now.year}, {now.month}, {now.day}, "
+                f"{now.hour}, {now.minute}, {now.second}, {now.isoweekday()})")
+        self._run_mpremote([["exec", code]],
+                           f"Clock set to {now:%H:%M}.")
 
 
 if __name__ == "__main__":
