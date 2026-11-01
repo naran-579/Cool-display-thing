@@ -14,4 +14,16 @@ This is a little matrix project that stands upright on your desk and can display
 5. Customize the message using /firmware/Cool Matrix display thing/Matrix Studio.py
 6. Everything should work
 
+
+# the button
+
+|Action               |Playlist             |Timer                      |Stopwatch                  |
+|---------------------|---------------------|---------------------------|---------------------------|
+|Press                |Skip to the next item|Start or pause             |Start or pause             |
+|Double-press         |Same as press        |Reset to the starting time |Reset to 00:00             |
+|Hold (about 1 second)|Switch to the timer  |Switch to the stopwatch    |Switch back to the playlist|
+|Press while flashing |-                    |Stop the flashing and reset|-                          |
+
+
+
 # BOM
